@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2048 숫자 퍼즐</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --board:#1b1e26; --cell:#242835; --text:#eef0f3; --sub:#8b93a1;
+    --accent:#ff8f5e;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at 30% 0%, #1c2029, #0f1115 60%);
+    color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:36px 16px; gap:18px;
+  }
+  h1{ margin:0; font-size:24px; }
+  .sub{ color:var(--sub); font-size:13px; text-align:center; max-width:420px; }
+  .topbar{ display:flex; gap:12px; align-items:center; }
+  .score-box{ background:var(--panel); border-radius:10px; padding:8px 18px; text-align:center; min-width:80px; }
+  .score-box .label{ font-size:10px; color:var(--sub); text-transform:uppercase; letter-spacing:1px; }
+  .score-box .value{ font-size:20px; font-weight:700; }
+  .btn{
+    border:none; border-radius:10px; padding:10px 18px; font-size:14px; font-weight:600;
+    background:var(--accent); color:#1a1000; cursor:pointer;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+
+  .board-wrap{ position:relative; }
+  .board{
+    position:relative; background:var(--board); border-radius:14px; padding:10px;
+    display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+    gap:10px; width:min(90vw,420px); height:min(90vw,420px);
+  }
+  .cell-bg{ background:var(--cell); border-radius:8px; }
+  .tile{
+    position:absolute; display:flex; align-items:center; justify-content:center;
+    border-radius:8px; font-weight:700; transition:top .12s ease, left .12s ease, transform .12s ease;
+    font-size:26px; color:#1a1000;
+  }
+  .overlay{
+    position:absolute; inset:0; background:rgba(15,17,21,.88); border-radius:14px;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:5;
+  }
+  .overlay.show{ display:flex; }
+  .overlay .msg{ font-size:22px; font-weight:700; }
+  .hint{ color:var(--sub); font-size:12px; }
+</style>
+</head>
+<body>
+  <h1>🔢 2048 숫자 퍼즐</h1>
+  <div class="sub">방향키 또는 화면 스와이프로 타일을 밀어서 같은 숫자를 합치세요. 2048을 만들면 승리!</div>
+
+  <div class="topbar">
+    <div class="score-box"><div class="label">점수</div><div class="value" id="score">0</div></div>
+    <div class="score-box"><div class="label">최고 점수</div><div class="value" id="best">0</div></div>
+    <button class="btn" id="newGameBtn">새 게임</button>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="overlay" id="overlay">
+        <div class="msg" id="overlayMsg">게임 종료</div>
+        <button class="btn" id="overlayRestart">다시 시작</button>
+      </div>
+    </div>
+  </div>
+  <div class="hint">키보드 화살표 ↑ ↓ ← → 를 사용하세요 (모바일은 스와이프)</div>
+
+<script>
+const SIZE = 4;
+const board = document.getElementById('board');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const overlay = document.getElementById('overlay');
+const overlayMsg = document.getElementById('overlayMsg');
+
+const BEST_KEY = 'puzzle2048_best';
+let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
+bestEl.textContent = best;
+
+let grid, score, won, over, tileId;
+
+const colorByValue = {
+  2:'#eee4da', 4:'#ede0c8', 8:'#f2b179', 16:'#f59563', 32:'#f67c5f', 64:'#f65e3b',
+  128:'#edcf72', 256:'#edcc61', 512:'#edc850', 1024:'#edc53f', 2048:'#edc22e',
+};
+
+function emptyGrid(){
+  return Array.from({length:SIZE}, ()=>Array(SIZE).fill(null));
+}
+
+function newGame(){
+  grid = emptyGrid();
+  score = 0; won = false; over = false; tileId = 1;
+  overlay.classList.remove('show');
+  addRandomTile(); addRandomTile();
+  renderCellBg();
+  render();
+}
+
+function renderCellBg(){
+  board.querySelectorAll('.cell-bg, .tile').forEach(el=>el.remove());
+  for(let i=0;i<SIZE*SIZE;i++){
+    const c = document.createElement('div');
+    c.className = 'cell-bg';
+    board.appendChild(c);
+  }
+}
+
+function addRandomTile(){
+  const empties = [];
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!grid[r][c]) empties.push([r,c]);
+  if(empties.length===0) return;
+  const [r,c] = empties[Math.floor(Math.random()*empties.length)];
+  grid[r][c] = { value: Math.random()<0.9?2:4, id: tileId++, isNew:true };
+}
+
+function cellRect(){
+  const padding = 10, gap = 10;
+  const boardSize = board.clientWidth;
+  const cellSize = (boardSize - padding*2 - gap*(SIZE-1))/SIZE;
+  return { padding, gap, cellSize };
+}
+
+function render(){
+  board.querySelectorAll('.tile').forEach(el=>el.remove());
+  const { padding, gap, cellSize } = cellRect();
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const t = grid[r][c];
+      if(!t) continue;
+      const el = document.createElement('div');
+      el.className='tile';
+      el.textContent = t.value;
+      const bg = colorByValue[t.value] || '#3c3a32';
+      el.style.background = bg;
+      el.style.color = t.value<=4 ? '#6b6255' : '#fff8f0';
+      el.style.width = cellSize+'px';
+      el.style.height = cellSize+'px';
+      el.style.left = (padding + c*(cellSize+gap))+'px';
+      el.style.top = (padding + r*(cellSize+gap))+'px';
+      el.style.fontSize = (cellSize*0.42)+'px';
+      if(t.isNew){
+        el.style.transform='scale(0.3)';
+        requestAnimationFrame(()=>{ el.style.transform='scale(1)'; });
+        t.isNew=false;
+      }
+      board.appendChild(el);
+    }
+  }
+  scoreEl.textContent = score;
+  if(score>best){ best=score; localStorage.setItem(BEST_KEY,best); bestEl.textContent=best; }
+}
+
+function slideRow(row){
+  const filtered = row.filter(x=>x);
+  const merged = [];
+  let gained = 0;
+  for(let i=0;i<filtered.length;i++){
+    if(i<filtered.length-1 && filtered[i].value===filtered[i+1].value){
+      const val = filtered[i].value*2;
+      merged.push({ value:val, id:filtered[i].id, isNew:false, merged:true });
+      gained += val;
+      if(val===2048) won=true;
+      i++;
+    } else {
+      merged.push(filtered[i]);
+    }
+  }
+  while(merged.length<SIZE) merged.push(null);
+  return { row: merged, gained };
+}
+
+function rotateGrid(g){
+  const ng = emptyGrid();
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) ng[c][SIZE-1-r]=g[r][c];
+  return ng;
+}
+
+function move(direction){
+  if(over) return;
+  let g = grid.map(row=>row.slice());
+  let rotations = { left:0, up:3, right:2, down:1 }[direction];
+  for(let i=0;i<rotations;i++) g = rotateGrid(g);
+
+  let moved = false, gainedTotal = 0;
+  for(let r=0;r<SIZE;r++){
+    const before = g[r].map(x=>x?x.value:null).join(',');
+    const { row, gained } = slideRow(g[r]);
+    g[r] = row;
+    gainedTotal += gained;
+    const after = g[r].map(x=>x?x.value:null).join(',');
+    if(before!==after) moved = true;
+  }
+
+  for(let i=0;i<(4-rotations)%4;i++) g = rotateGrid(g);
+
+  if(moved){
+    grid = g;
+    score += gainedTotal;
+    addRandomTile();
+    render();
+    checkGameOver();
+    if(won) showOverlay('🎉 2048 달성! 승리했어요!');
+  }
+}
+
+function checkGameOver(){
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      if(!grid[r][c]) return;
+      const v = grid[r][c].value;
+      if(c<SIZE-1 && grid[r][c+1] && grid[r][c+1].value===v) return;
+      if(r<SIZE-1 && grid[r+1][c] && grid[r+1][c].value===v) return;
+    }
+  }
+  over = true;
+  showOverlay('게임 종료! 더 이상 움직일 수 없어요');
+}
+
+function showOverlay(msg){
+  overlayMsg.textContent = msg;
+  overlay.classList.add('show');
+}
+
+document.addEventListener('keydown', e=>{
+  const map = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down' };
+  if(map[e.key]){ e.preventDefault(); move(map[e.key]); }
+});
+
+let touchStartX=0, touchStartY=0;
+board.addEventListener('touchstart', e=>{
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, {passive:true});
+board.addEventListener('touchend', e=>{
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if(Math.max(Math.abs(dx),Math.abs(dy)) < 24) return;
+  if(Math.abs(dx)>Math.abs(dy)) move(dx>0?'right':'left');
+  else move(dy>0?'down':'up');
+}, {passive:true});
+
+document.getElementById('newGameBtn').addEventListener('click', newGame);
+document.getElementById('overlayRestart').addEventListener('click', newGame);
+window.addEventListener('resize', render);
+
+newGame();
+</script>
+</body>
+</html>

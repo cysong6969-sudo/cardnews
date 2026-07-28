@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포모도로 + 할일 트래커</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e8eaed; --sub:#8b93a1; --accent:#ff6b5e; --accent2:#5ec8ff;
+    --green:#5ecf8f; --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at 20% 10%,#1c2029,#0f1115 60%);
+    color:var(--text); min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
+    padding:40px 20px;
+  }
+  .app{ width:100%; max-width:920px; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  @media (max-width:800px){ .app{grid-template-columns:1fr;} }
+  h1{ grid-column:1/-1; font-size:22px; font-weight:600; margin:0 0 4px; letter-spacing:.3px; }
+  .sub{ grid-column:1/-1; color:var(--sub); font-size:13px; margin-bottom:8px; }
+
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:24px; }
+
+  /* Timer */
+  .timer-card{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+  .mode-tabs{ display:flex; gap:8px; background:var(--panel2); padding:4px; border-radius:999px; }
+  .mode-tabs button{
+    border:none; background:transparent; color:var(--sub); padding:8px 16px; border-radius:999px;
+    font-size:13px; cursor:pointer; transition:.2s;
+  }
+  .mode-tabs button.active{ background:var(--accent); color:#fff; }
+  .ring-wrap{ position:relative; width:220px; height:220px; }
+  svg{ transform:rotate(-90deg); }
+  .ring-bg{ fill:none; stroke:var(--panel2); stroke-width:10; }
+  .ring-fg{ fill:none; stroke:var(--accent); stroke-width:10; stroke-linecap:round; transition:stroke-dashoffset .3s linear, stroke .3s; }
+  .ring-label{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .time{ font-size:44px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .phase{ color:var(--sub); font-size:13px; margin-top:4px; text-transform:uppercase; letter-spacing:1px; }
+  .controls{ display:flex; gap:10px; }
+  .btn{ border:none; border-radius:10px; padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; transition:.15s; }
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-primary:hover{ filter:brightness(1.1); }
+  .btn-ghost{ background:var(--panel2); color:var(--text); }
+  .btn-ghost:hover{ background:#262b36; }
+  .settings-row{ display:flex; gap:16px; font-size:12px; color:var(--sub); }
+  .settings-row label{ display:flex; flex-direction:column; gap:4px; align-items:center; }
+  .settings-row input{
+    width:56px; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:6px; text-align:center; font-size:13px;
+  }
+  .stat-line{ display:flex; gap:18px; margin-top:4px; font-size:12px; color:var(--sub); }
+  .stat-line b{ color:var(--text); font-size:15px; display:block; }
+
+  /* Tasks */
+  .tasks-card{ display:flex; flex-direction:column; gap:14px; }
+  .task-input{ display:flex; gap:8px; }
+  .task-input input{
+    flex:1; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:10px 12px; font-size:14px;
+  }
+  .task-input input:focus{ outline:1px solid var(--accent2); }
+  ul.tasks{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; max-height:360px; overflow-y:auto; }
+  ul.tasks li{
+    display:flex; align-items:center; gap:10px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; transition:.2s;
+  }
+  ul.tasks li.active{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  ul.tasks li.done .task-text{ text-decoration:line-through; color:var(--sub); }
+  .check{ width:18px; height:18px; border-radius:6px; border:1.5px solid var(--sub); cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .check.checked{ background:var(--green); border-color:var(--green); }
+  .task-text{ flex:1; font-size:14px; cursor:pointer; }
+  .pomo-count{ font-size:11px; color:var(--sub); background:#0f1115; padding:2px 7px; border-radius:999px; }
+  .del{ background:none; border:none; color:var(--sub); cursor:pointer; font-size:16px; padding:2px 4px; }
+  .del:hover{ color:var(--accent); }
+  .empty{ color:var(--sub); font-size:13px; text-align:center; padding:20px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🍅 포모도로 + 할일 트래커</h1>
+  <div class="sub">할일을 고르고 타이머를 시작하면, 완료된 뽀모도로가 해당 작업에 기록됩니다.</div>
+
+  <div class="card timer-card">
+    <div class="mode-tabs">
+      <button data-mode="work" class="active">집중</button>
+      <button data-mode="short">짧은 휴식</button>
+      <button data-mode="long">긴 휴식</button>
+    </div>
+
+    <div class="ring-wrap">
+      <svg width="220" height="220">
+        <circle class="ring-bg" cx="110" cy="110" r="100"></circle>
+        <circle class="ring-fg" id="ring" cx="110" cy="110" r="100"></circle>
+      </svg>
+      <div class="ring-label">
+        <div class="time" id="time">25:00</div>
+        <div class="phase" id="phaseLabel">집중 시간</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-primary" id="startBtn">시작</button>
+      <button class="btn btn-ghost" id="resetBtn">리셋</button>
+      <button class="btn btn-ghost" id="skipBtn">건너뛰기</button>
+    </div>
+
+    <div class="settings-row">
+      <label>집중(분) <input type="number" id="workLen" value="25" min="1" max="90"></label>
+      <label>짧은휴식(분) <input type="number" id="shortLen" value="5" min="1" max="30"></label>
+      <label>긴휴식(분) <input type="number" id="longLen" value="15" min="1" max="60"></label>
+    </div>
+
+    <div class="stat-line">
+      <div>오늘 완료 <b id="todayCount">0</b></div>
+      <div>총 누적 <b id="totalCount">0</b></div>
+      <div>현재 작업 <b id="activeTaskLabel">없음</b></div>
+    </div>
+  </div>
+
+  <div class="card tasks-card">
+    <div class="task-input">
+      <input type="text" id="taskInput" placeholder="할 일을 입력하고 Enter (예: 보고서 작성)">
+      <button class="btn btn-primary" id="addTaskBtn">추가</button>
+    </div>
+    <ul class="tasks" id="taskList"></ul>
+    <div class="empty" id="emptyMsg">아직 할 일이 없어요. 위에서 추가해보세요.</div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'pomo_tasks_v1';
+const STATS_KEY = 'pomo_stats_v1';
+
+let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{"total":0,"day":"","today":0}');
+let activeTaskId = tasks.find(t => t.active)?.id ?? null;
+
+const todayStr = new Date().toISOString().slice(0,10);
+if (stats.day !== todayStr) { stats.day = todayStr; stats.today = 0; }
+
+const modes = {
+  work:  { label:'집중 시간', minutesInputId:'workLen', color:'#ff6b5e' },
+  short: { label:'짧은 휴식', minutesInputId:'shortLen', color:'#5ec8ff' },
+  long:  { label:'긴 휴식',   minutesInputId:'longLen',  color:'#5ecf8f' },
+};
+let currentMode = 'work';
+let remaining = 25*60;
+let totalDuration = 25*60;
+let running = false;
+let intervalId = null;
+
+const timeEl = document.getElementById('time');
+const phaseLabelEl = document.getElementById('phaseLabel');
+const ring = document.getElementById('ring');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const skipBtn = document.getElementById('skipBtn');
+const todayCountEl = document.getElementById('todayCount');
+const totalCountEl = document.getElementById('totalCount');
+const activeTaskLabelEl = document.getElementById('activeTaskLabel');
+const taskList = document.getElementById('taskList');
+const emptyMsg = document.getElementById('emptyMsg');
+const taskInput = document.getElementById('taskInput');
+
+const R = 100, CIRC = 2*Math.PI*R;
+ring.style.strokeDasharray = CIRC;
+
+function getMinutes(mode){
+  return parseInt(document.getElementById(modes[mode].minutesInputId).value, 10) || 1;
+}
+
+function setMode(mode, resetTimer=true){
+  currentMode = mode;
+  document.querySelectorAll('.mode-tabs button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.mode===mode);
+  });
+  phaseLabelEl.textContent = modes[mode].label;
+  ring.style.stroke = modes[mode].color;
+  if(resetTimer){
+    stopTimer();
+    totalDuration = getMinutes(mode)*60;
+    remaining = totalDuration;
+    render();
+  }
+}
+
+function render(){
+  const m = Math.floor(remaining/60).toString().padStart(2,'0');
+  const s = Math.floor(remaining%60).toString().padStart(2,'0');
+  timeEl.textContent = `${m}:${s}`;
+  const progress = 1 - remaining/totalDuration;
+  ring.style.strokeDashoffset = CIRC * (1-progress);
+  startBtn.textContent = running ? '일시정지' : '시작';
+  todayCountEl.textContent = stats.today;
+  totalCountEl.textContent = stats.total;
+  const at = tasks.find(t=>t.id===activeTaskId);
+  activeTaskLabelEl.textContent = at ? at.text : '없음';
+}
+
+function beep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type='sine'; o.frequency.value=880;
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.6);
+    o.start(); o.stop(ctx.currentTime+0.6);
+  }catch(e){}
+}
+
+function tick(){
+  remaining--;
+  if(remaining<=0){
+    beep();
+    if(currentMode==='work'){
+      stats.total++; stats.today++;
+      saveStats();
+      const at = tasks.find(t=>t.id===activeTaskId);
+      if(at){ at.pomodoros = (at.pomodoros||0)+1; saveTasks(); renderTasks(); }
+      setMode('short');
+    } else {
+      setMode('work');
+    }
+    running=false;
+    render();
+    return;
+  }
+  render();
+}
+
+function startTimer(){
+  running = !running;
+  if(running){
+    intervalId = setInterval(tick, 1000);
+  } else {
+    clearInterval(intervalId);
+  }
+  render();
+}
+function stopTimer(){
+  running=false; clearInterval(intervalId); render();
+}
+function resetTimer(){
+  stopTimer();
+  totalDuration = getMinutes(currentMode)*60;
+  remaining = totalDuration;
+  render();
+}
+function skip(){
+  stopTimer();
+  if(currentMode==='work') setMode('short');
+  else setMode('work');
+}
+
+startBtn.addEventListener('click', startTimer);
+resetBtn.addEventListener('click', resetTimer);
+skipBtn.addEventListener('click', skip);
+document.querySelectorAll('.mode-tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>setMode(b.dataset.mode));
+});
+['workLen','shortLen','longLen'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    if(!running) resetTimer();
+  });
+});
+
+function saveTasks(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+function saveStats(){ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }
+
+function renderTasks(){
+  taskList.innerHTML = '';
+  emptyMsg.style.display = tasks.length ? 'none' : 'block';
+  tasks.forEach(t=>{
+    const li = document.createElement('li');
+    li.className = (t.id===activeTaskId?'active ':'') + (t.done?'done':'');
+    li.innerHTML = `
+      <div class="check ${t.done?'checked':''}"></div>
+      <div class="task-text">${escapeHtml(t.text)}</div>
+      <div class="pomo-count">🍅 ${t.pomodoros||0}</div>
+      <button class="del">✕</button>
+    `;
+    li.querySelector('.task-text').addEventListener('click', ()=>{
+      activeTaskId = t.id;
+      tasks.forEach(x=>x.active = x.id===t.id);
+      saveTasks(); renderTasks(); render();
+    });
+    li.querySelector('.check').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      t.done = !t.done;
+      saveTasks(); renderTasks();
+    });
+    li.querySelector('.del').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      tasks = tasks.filter(x=>x.id!==t.id);
+      if(activeTaskId===t.id) activeTaskId=null;
+      saveTasks(); renderTasks(); render();
+    });
+    taskList.appendChild(li);
+  });
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function addTask(){
+  const v = taskInput.value.trim();
+  if(!v) return;
+  const t = { id: Date.now(), text:v, done:false, pomodoros:0, active:tasks.length===0 };
+  if(t.active) activeTaskId = t.id;
+  tasks.push(t);
+  taskInput.value='';
+  saveTasks(); renderTasks(); render();
+}
+document.getElementById('addTaskBtn').addEventListener('click', addTask);
+taskInput.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
+
+// init
+setMode('work', true);
+renderTasks();
+render();
+</script>
+</body>
+</html>

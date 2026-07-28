@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스텝 시퀀서 비트메이커</title>
+<style>
+  :root{
+    --bg:#0e0f13; --panel:#171922; --border:#272b37; --text:#eef0f3; --sub:#8b93a1;
+    --accent:#5ecf8f; --beat:#2a2f3d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at 15% 0%, #1a1d27, #0e0f13 60%);
+    color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:32px 16px; gap:20px;
+  }
+  h1{ margin:0; font-size:22px; }
+  .sub{ color:var(--sub); font-size:13px; text-align:center; }
+
+  .transport{ display:flex; align-items:center; gap:16px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px 20px; flex-wrap:wrap; justify-content:center; }
+  .btn{ border:none; border-radius:10px; padding:10px 20px; font-size:14px; font-weight:700; cursor:pointer; background:var(--accent); color:#062012; }
+  .btn:hover{ filter:brightness(1.1); }
+  .btn.secondary{ background:#232733; color:var(--text); border:1px solid var(--border); }
+  .bpm-field{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sub); }
+  .bpm-field input{ width:70px; accent-color:var(--accent); }
+  .bpm-field b{ color:var(--text); min-width:34px; display:inline-block; text-align:right; }
+
+  .sequencer{ width:100%; max-width:960px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; overflow-x:auto; }
+  .track-row{ display:grid; grid-template-columns:130px repeat(16, 1fr); gap:6px; align-items:center; margin-bottom:8px; }
+  .track-name{ font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .track-name .dot{ width:10px; height:10px; border-radius:50%; }
+  .step{
+    aspect-ratio:1/1; border-radius:6px; background:var(--beat); cursor:pointer; border:1px solid transparent;
+    transition:.1s;
+  }
+  .step:hover{ filter:brightness(1.3); }
+  .step.on{ box-shadow:0 0 0 1px rgba(255,255,255,.15) inset; }
+  .step.group-alt{ background:#232838; }
+  .step.playing{ outline:2px solid #fff; outline-offset:-2px; }
+  .vol{ width:60px; accent-color:var(--accent); }
+
+  .beat-markers{ display:grid; grid-template-columns:130px repeat(16,1fr); gap:6px; margin-bottom:6px; }
+  .beat-markers span{ text-align:center; font-size:10px; color:var(--sub); }
+
+  .patterns{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+</style>
+</head>
+<body>
+  <h1>🥁 스텝 시퀀서 비트메이커</h1>
+  <div class="sub">칸을 클릭해서 패턴을 만들고 재생해보세요. 브라우저에서 즉석 합성된 드럼 사운드를 사용합니다.</div>
+
+  <div class="transport">
+    <button class="btn" id="playBtn">▶ 재생</button>
+    <button class="btn secondary" id="clearBtn">전체 지우기</button>
+    <div class="bpm-field">BPM <input type="range" id="bpm" min="60" max="200" value="110"> <b id="bpmVal">110</b></div>
+    <button class="btn secondary" id="saveBtn">저장</button>
+    <button class="btn secondary" id="loadBtn">불러오기</button>
+  </div>
+
+  <div class="sequencer">
+    <div class="beat-markers" id="markers"></div>
+    <div id="tracks"></div>
+  </div>
+
+<script>
+const STEPS = 16;
+const TRACKS = [
+  { id:'kick',  name:'킥',   color:'#ff6b5e' },
+  { id:'snare', name:'스네어', color:'#ffce5e' },
+  { id:'hihat', name:'하이햇', color:'#5ec8ff' },
+  { id:'clap',  name:'클랩',  color:'#c85eff' },
+  { id:'tom',   name:'탐',   color:'#5ecf8f' },
+];
+
+let pattern = {};
+TRACKS.forEach(t=> pattern[t.id] = Array(STEPS).fill(false));
+let volumes = {}; TRACKS.forEach(t=> volumes[t.id]=0.8);
+
+const tracksEl = document.getElementById('tracks');
+const markersEl = document.getElementById('markers');
+
+// markers row
+const cornerSpacer = document.createElement('span'); cornerSpacer.textContent='';
+markersEl.appendChild(cornerSpacer);
+for(let i=0;i<STEPS;i++){
+  const s = document.createElement('span');
+  s.textContent = (i%4===0) ? (i/4+1) : '·';
+  markersEl.appendChild(s);
+}
+
+function buildUI(){
+  TRACKS.forEach(track=>{
+    const row = document.createElement('div');
+    row.className = 'track-row';
+
+    const nameCell = document.createElement('div');
+    nameCell.className = 'track-name';
+    nameCell.innerHTML = `<span class="dot" style="background:${track.color}"></span>${track.name}`;
+    row.appendChild(nameCell);
+
+    for(let i=0;i<STEPS;i++){
+      const step = document.createElement('div');
+      step.className = 'step' + (Math.floor(i/4)%2===1 ? ' group-alt':'');
+      step.dataset.track = track.id;
+      step.dataset.index = i;
+      step.addEventListener('click', ()=>{
+        pattern[track.id][i] = !pattern[track.id][i];
+        step.classList.toggle('on');
+        step.style.background = pattern[track.id][i] ? track.color : (Math.floor(i/4)%2===1 ? '#232838' : '#2a2f3d');
+      });
+      row.appendChild(step);
+    }
+    tracksEl.appendChild(row);
+  });
+}
+buildUI();
+
+// --- Audio synthesis ---
+let audioCtx = null;
+function ctx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playKick(time, vol){
+  const c = ctx();
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.connect(g); g.connect(c.destination);
+  o.frequency.setValueAtTime(150, time);
+  o.frequency.exponentialRampToValueAtTime(0.001+40, time+0.15);
+  g.gain.setValueAtTime(vol, time);
+  g.gain.exponentialRampToValueAtTime(0.001, time+0.35);
+  o.start(time); o.stop(time+0.36);
+}
+function playSnare(time, vol){
+  const c = ctx();
+  const bufferSize = c.sampleRate*0.2;
+  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+  const noise = c.createBufferSource(); noise.buffer = buffer;
+  const noiseFilter = c.createBiquadFilter(); noiseFilter.type='highpass'; noiseFilter.frequency.value=1000;
+  const noiseGain = c.createGain();
+  noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(c.destination);
+  noiseGain.gain.setValueAtTime(vol, time);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, time+0.2);
+
+  const o = c.createOscillator(); const og = c.createGain();
+  o.type='triangle'; o.frequency.value=180;
+  o.connect(og); og.connect(c.destination);
+  og.gain.setValueAtTime(vol*0.6, time);
+  og.gain.exponentialRampToValueAtTime(0.001, time+0.12);
+
+  noise.start(time); noise.stop(time+0.2);
+  o.start(time); o.stop(time+0.12);
+}
+function playHihat(time, vol){
+  const c = ctx();
+  const bufferSize = c.sampleRate*0.05;
+  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+  const noise = c.createBufferSource(); noise.buffer = buffer;
+  const filter = c.createBiquadFilter(); filter.type='highpass'; filter.frequency.value=7000;
+  const gain = c.createGain();
+  noise.connect(filter); filter.connect(gain); gain.connect(c.destination);
+  gain.gain.setValueAtTime(vol*0.5, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time+0.05);
+  noise.start(time); noise.stop(time+0.05);
+}
+function playClap(time, vol){
+  const c = ctx();
+  for(let k=0;k<3;k++){
+    const t2 = time + k*0.01;
+    const bufferSize = c.sampleRate*0.08;
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2-1;
+    const noise = c.createBufferSource(); noise.buffer = buffer;
+    const filter = c.createBiquadFilter(); filter.type='bandpass'; filter.frequency.value=1500;
+    const gain = c.createGain();
+    noise.connect(filter); filter.connect(gain); gain.connect(c.destination);
+    gain.gain.setValueAtTime(vol*0.5, t2);
+    gain.gain.exponentialRampToValueAtTime(0.001, t2+0.08);
+    noise.start(t2); noise.stop(t2+0.08);
+  }
+}
+function playTom(time, vol){
+  const c = ctx();
+  const o = c.createOscillator(); const g = c.createGain();
+  o.connect(g); g.connect(c.destination);
+  o.frequency.setValueAtTime(220, time);
+  o.frequency.exponentialRampToValueAtTime(80, time+0.25);
+  g.gain.setValueAtTime(vol, time);
+  g.gain.exponentialRampToValueAtTime(0.001, time+0.3);
+  o.start(time); o.stop(time+0.3);
+}
+const players = { kick:playKick, snare:playSnare, hihat:playHihat, clap:playClap, tom:playTom };
+
+// --- Sequencer scheduling ---
+let currentStep = 0;
+let isPlaying = false;
+let timerId = null;
+let nextNoteTime = 0;
+const scheduleAheadTime = 0.1;
+const lookahead = 25;
+
+function scheduler(){
+  while(nextNoteTime < ctx().currentTime + scheduleAheadTime){
+    TRACKS.forEach(track=>{
+      if(pattern[track.id][currentStep]){
+        players[track.id](nextNoteTime, volumes[track.id]);
+      }
+    });
+    highlightStep(currentStep);
+    const bpm = parseInt(document.getElementById('bpm').value,10);
+    const secondsPerStep = 60/bpm/4;
+    nextNoteTime += secondsPerStep;
+    currentStep = (currentStep+1) % STEPS;
+  }
+  timerId = setTimeout(scheduler, lookahead);
+}
+
+let lastHighlighted = -1;
+function highlightStep(step){
+  document.querySelectorAll('.step').forEach(el=>{
+    el.classList.toggle('playing', parseInt(el.dataset.index,10)===step);
+  });
+}
+
+const playBtn = document.getElementById('playBtn');
+playBtn.addEventListener('click', ()=>{
+  if(!isPlaying){
+    ctx().resume();
+    isPlaying = true;
+    currentStep = 0;
+    nextNoteTime = ctx().currentTime + 0.05;
+    scheduler();
+    playBtn.textContent = '⏸ 정지';
+  } else {
+    isPlaying = false;
+    clearTimeout(timerId);
+    playBtn.textContent = '▶ 재생';
+    document.querySelectorAll('.step').forEach(el=>el.classList.remove('playing'));
+  }
+});
+
+document.getElementById('bpm').addEventListener('input', (e)=>{
+  document.getElementById('bpmVal').textContent = e.target.value;
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  TRACKS.forEach(t=> pattern[t.id] = Array(STEPS).fill(false));
+  document.querySelectorAll('.step').forEach(el=>{
+    el.classList.remove('on');
+    const i = parseInt(el.dataset.index,10);
+    el.style.background = Math.floor(i/4)%2===1 ? '#232838' : '#2a2f3d';
+  });
+});
+
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  localStorage.setItem('beatpattern_v1', JSON.stringify({pattern, bpm:document.getElementById('bpm').value}));
+  alert('패턴이 저장되었습니다!');
+});
+document.getElementById('loadBtn').addEventListener('click', ()=>{
+  const saved = localStorage.getItem('beatpattern_v1');
+  if(!saved){ alert('저장된 패턴이 없습니다.'); return; }
+  const data = JSON.parse(saved);
+  pattern = data.pattern;
+  document.getElementById('bpm').value = data.bpm;
+  document.getElementById('bpmVal').textContent = data.bpm;
+  document.querySelectorAll('.step').forEach(el=>{
+    const trackId = el.dataset.track;
+    const i = parseInt(el.dataset.index,10);
+    const on = pattern[trackId][i];
+    el.classList.toggle('on', on);
+    const track = TRACKS.find(t=>t.id===trackId);
+    el.style.background = on ? track.color : (Math.floor(i/4)%2===1 ? '#232838' : '#2a2f3d');
+  });
+});
+</script>
+</body>
+</html>
