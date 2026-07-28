@@ -130,7 +130,7 @@ function playKick(time, vol){
   const g = c.createGain();
   o.connect(g); g.connect(c.destination);
   o.frequency.setValueAtTime(150, time);
-  o.frequency.exponentialRampToValueAtTime(0.001+40, time+0.15);
+  o.frequency.exponentialRampToValueAtTime(40, time+0.15);
   g.gain.setValueAtTime(vol, time);
   g.gain.exponentialRampToValueAtTime(0.001, time+0.35);
   o.start(time); o.stop(time+0.36);
