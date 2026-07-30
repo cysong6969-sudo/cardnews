@@ -152,7 +152,7 @@ function renderMessages(container, docs, shouldScroll) {
     const mine = currentUser && m.senderUid === currentUser.uid;
     const text = m.text || "";
     const long = isLongText(text);
-    const senderInfo = !mine && membersCache[m.senderUid];
+    const senderInfo = membersCache[m.senderUid];
     const bubbleStyle = senderInfo
       ? `style="background:${colorForMemberId(senderInfo.memberId)}26; border-color:${colorForMemberId(senderInfo.memberId)}66;"`
       : "";
