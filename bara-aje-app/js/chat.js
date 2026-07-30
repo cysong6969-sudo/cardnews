@@ -16,6 +16,10 @@ let lastSeenMessageId = null;
 let hasInitialSnapshot = false;
 let pinchStartDist = null;
 let pinchStartSize = null;
+let longPressTimer = null;
+let longPressTargetEl = null;
+
+const LONG_PRESS_MS = 550;
 
 const FONT_SIZE_KEY = "bara_chat_font_size";
 const FONT_SIZE_MIN = 13;
@@ -193,15 +197,34 @@ async function toggleReaction(messageId, emoji) {
   }
 }
 
-async function deleteMessage(messageId) {
+function openDeleteConfirmModal(messageId) {
   const m = messagesCache[messageId];
   if (!m || !currentUser || m.senderUid !== currentUser.uid) return;
-  if (!confirm("이 메시지를 삭제할까요?")) return;
-  try {
-    await deleteDoc(doc(db, "messages", messageId));
-  } catch (err) {
-    console.warn("메시지 삭제 실패:", err.message);
-  }
+  const root = document.getElementById("modal-root");
+  root.innerHTML = `
+    <div class="modal-overlay" id="delete-confirm-overlay">
+      <div class="modal-sheet">
+        <h3>메시지 삭제</h3>
+        <div class="msg-detail-text">${escapeHtml(m.text || "")}</div>
+        <div class="modal-actions">
+          <button id="delete-cancel">취소</button>
+          <button id="delete-confirm" style="color:var(--accent);">삭제</button>
+        </div>
+      </div>
+    </div>
+  `;
+  root.querySelector("#delete-confirm-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "delete-confirm-overlay") root.innerHTML = "";
+  });
+  root.querySelector("#delete-cancel").addEventListener("click", () => { root.innerHTML = ""; });
+  root.querySelector("#delete-confirm").addEventListener("click", async () => {
+    root.innerHTML = "";
+    try {
+      await deleteDoc(doc(db, "messages", messageId));
+    } catch (err) {
+      console.warn("메시지 삭제 실패:", err.message);
+    }
+  });
 }
 
 function openMessageModal(id) {
@@ -293,11 +316,6 @@ export function initChat({ container, form, input }) {
       renderMessages(container, lastDocs, false);
       return;
     }
-    const deleteTrigger = e.target.closest(".msg-delete-trigger");
-    if (deleteTrigger) {
-      deleteMessage(deleteTrigger.dataset.id);
-      return;
-    }
     const moreLink = e.target.closest(".more-link");
     const textEl = e.target.closest(".text");
     if (moreLink || textEl) {
@@ -305,6 +323,26 @@ export function initChat({ container, form, input }) {
       if (msg) openMessageModal(msg.dataset.id);
     }
   });
+
+  container.addEventListener("pointerdown", (e) => {
+    const btn = e.target.closest(".msg-delete-trigger");
+    if (!btn) return;
+    longPressTargetEl = btn;
+    btn.classList.add("pressing");
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      btn.classList.remove("pressing");
+      openDeleteConfirmModal(btn.dataset.id);
+    }, LONG_PRESS_MS);
+  });
+
+  const cancelLongPress = () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    if (longPressTargetEl) { longPressTargetEl.classList.remove("pressing"); longPressTargetEl = null; }
+  };
+  container.addEventListener("pointerup", cancelLongPress);
+  container.addEventListener("pointerleave", cancelLongPress, true);
+  container.addEventListener("pointercancel", cancelLongPress);
 
   container.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {

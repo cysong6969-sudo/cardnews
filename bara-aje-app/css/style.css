@@ -16,6 +16,7 @@
 html, body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -174,7 +175,8 @@ button, input, textarea, select {
 /* ---------- App shell ---------- */
 
 #app-screen {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -290,6 +292,14 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1
   cursor: pointer;
   padding: 0;
   opacity: 0.75;
+  -webkit-touch-callout: none;
+  user-select: none;
+  transition: transform 0.15s, color 0.15s;
+}
+
+.msg-delete-trigger.pressing {
+  color: var(--accent);
+  transform: scale(1.3);
 }
 
 .read-badge {
