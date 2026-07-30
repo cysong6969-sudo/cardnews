@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, doc, setDoc, updateDoc, deleteField, query, orderBy, limit, onSnapshot, serverTimestamp,
+  collection, addDoc, deleteDoc, doc, setDoc, updateDoc, deleteField, query, orderBy, limit, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 import { db } from "./firebase-init.js";
 import { subscribeMembers, colorForMemberId } from "./family.js";
@@ -163,6 +163,7 @@ function renderMessages(container, docs, shouldScroll) {
         ${long ? `<div class="more-link">더보기</div>` : ""}
         <div class="msg-actions">
           <button class="react-trigger" data-id="${snap.id}">🙂+</button>
+          ${mine ? `<button class="msg-delete-trigger" data-id="${snap.id}">🗑</button>` : ""}
           ${renderReadBadge(m, mine)}
           <div class="time">${formatTime(m.createdAt)}</div>
         </div>
@@ -189,6 +190,17 @@ async function toggleReaction(messageId, emoji) {
     });
   } catch (err) {
     console.warn("반응 저장 실패:", err.message);
+  }
+}
+
+async function deleteMessage(messageId) {
+  const m = messagesCache[messageId];
+  if (!m || !currentUser || m.senderUid !== currentUser.uid) return;
+  if (!confirm("이 메시지를 삭제할까요?")) return;
+  try {
+    await deleteDoc(doc(db, "messages", messageId));
+  } catch (err) {
+    console.warn("메시지 삭제 실패:", err.message);
   }
 }
 
@@ -279,6 +291,11 @@ export function initChat({ container, form, input }) {
     if (trigger) {
       openPickerId = openPickerId === trigger.dataset.id ? null : trigger.dataset.id;
       renderMessages(container, lastDocs, false);
+      return;
+    }
+    const deleteTrigger = e.target.closest(".msg-delete-trigger");
+    if (deleteTrigger) {
+      deleteMessage(deleteTrigger.dataset.id);
       return;
     }
     const moreLink = e.target.closest(".more-link");

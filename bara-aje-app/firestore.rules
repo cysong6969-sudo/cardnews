@@ -10,6 +10,7 @@ service cloud.firestore {
       allow read, create: if request.auth != null;
       allow update: if request.auth != null
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+      allow delete: if request.auth != null && request.auth.uid == resource.data.senderUid;
     }
     match /photos/{id} {
       allow read, create, delete: if request.auth != null;
