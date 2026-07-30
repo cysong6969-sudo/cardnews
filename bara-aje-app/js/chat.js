@@ -12,6 +12,15 @@ let lastDocs = [];
 let membersCache = {};
 let readsCache = {};
 let containerEl = null;
+let lastSeenMessageId = null;
+let hasInitialSnapshot = false;
+let pinchStartDist = null;
+let pinchStartSize = null;
+
+const FONT_SIZE_KEY = "bara_chat_font_size";
+const FONT_SIZE_MIN = 13;
+const FONT_SIZE_MAX = 26;
+const FONT_SIZE_DEFAULT = 15;
 
 const LONG_TEXT_CHARS = 80;
 const LONG_TEXT_LINES = 7;
@@ -73,6 +82,64 @@ function renderReadBadge(m, mine) {
 
 function scrollToBottom(container) {
   container.scrollTop = container.scrollHeight;
+}
+
+function playChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    [660, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.28);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.3);
+    });
+  } catch (err) {
+    console.warn("알림음 재생 실패:", err.message);
+  }
+}
+
+function playNotification() {
+  try {
+    if ("speechSynthesis" in window) {
+      playChime();
+      const utter = new SpeechSynthesisUtterance("아제");
+      utter.lang = "ko-KR";
+      utter.rate = 1.1;
+      utter.pitch = 1.3;
+      utter.volume = 0.85;
+      window.speechSynthesis.speak(utter);
+    } else {
+      playChime();
+    }
+  } catch (err) {
+    playChime();
+  }
+}
+
+function getChatFontSize() {
+  const stored = parseFloat(localStorage.getItem(FONT_SIZE_KEY));
+  return stored >= FONT_SIZE_MIN && stored <= FONT_SIZE_MAX ? stored : FONT_SIZE_DEFAULT;
+}
+
+function setChatFontSize(px) {
+  const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(px)));
+  document.documentElement.style.setProperty("--chat-font-size", clamped + "px");
+  localStorage.setItem(FONT_SIZE_KEY, String(clamped));
+  return clamped;
+}
+
+function touchDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
 }
 
 function renderMessages(container, docs, shouldScroll) {
@@ -164,9 +231,19 @@ function isChatVisible(container) {
 export function initChat({ container, form, input }) {
   containerEl = container;
 
+  setChatFontSize(getChatFontSize());
+
   const q = query(collection(db, "messages"), orderBy("createdAt", "asc"), limit(50));
   if (unsubscribe) unsubscribe();
   unsubscribe = onSnapshot(q, (snap) => {
+    const lastDoc = snap.docs[snap.docs.length - 1];
+    if (hasInitialSnapshot && lastDoc && lastDoc.id !== lastSeenMessageId) {
+      const data = lastDoc.data();
+      if (currentUser && data.senderUid !== currentUser.uid) playNotification();
+    }
+    if (lastDoc) lastSeenMessageId = lastDoc.id;
+    hasInitialSnapshot = true;
+
     renderMessages(container, snap.docs, true);
     if (isChatVisible(container)) markChatRead();
   });
@@ -211,6 +288,24 @@ export function initChat({ container, form, input }) {
       if (msg) openMessageModal(msg.dataset.id);
     }
   });
+
+  container.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      pinchStartDist = touchDistance(e.touches);
+      pinchStartSize = getChatFontSize();
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && pinchStartDist) {
+      const ratio = touchDistance(e.touches) / pinchStartDist;
+      setChatFontSize(pinchStartSize * ratio);
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) pinchStartDist = null;
+  }, { passive: true });
 
   input.addEventListener("input", () => {
     input.style.height = "auto";
