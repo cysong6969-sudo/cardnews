@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>바라아제</title>
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="profile-screen">
+  <div class="hero-bg"></div>
+  <div class="hero-photo"></div>
+  <h1>바라아제</h1>
+  <div id="profile-grid" class="profile-grid"></div>
+</div>
+
+<div id="pin-overlay" class="pin-overlay hidden"></div>
+
+<div id="app-screen" class="hidden">
+  <header class="app-header">
+    <div>
+      <div class="title">바라아제</div>
+      <div class="who" id="who-label"></div>
+    </div>
+    <button id="switch-profile-btn" class="switch-profile-btn">다른 프로필로 전환</button>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="chat" class="active">메신저</button>
+    <button data-tab="photos">추억사진</button>
+    <button data-tab="calendar">캘린더</button>
+  </nav>
+
+  <main>
+    <section id="view-chat" class="view">
+      <div id="chat-messages"></div>
+      <form id="chat-form" class="chat-input-row">
+        <input id="chat-input" type="text" placeholder="메시지를 입력하세요" autocomplete="off">
+        <button type="submit">전송</button>
+      </form>
+    </section>
+
+    <section id="view-photos" class="view hidden">
+      <form id="photo-form" class="photo-upload-row">
+        <label class="file-btn">
+          사진 선택 (여러장 가능)
+          <input id="photo-file" type="file" accept="image/*" multiple class="hidden" required>
+        </label>
+        <input id="photo-caption" type="text" placeholder="캡션 (선택)">
+        <input id="photo-date" type="date">
+        <button type="submit" class="upload-btn">올리기</button>
+      </form>
+      <div id="upload-status" class="upload-status"></div>
+      <div id="photo-grid" class="photo-grid"></div>
+    </section>
+
+    <section id="view-calendar" class="view hidden">
+      <div class="cal-header">
+        <button id="cal-prev">‹</button>
+        <div class="label" id="cal-label"></div>
+        <button id="cal-next">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-list" id="cal-list"></div>
+      <button id="cal-add-btn" class="fab">＋</button>
+    </section>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
