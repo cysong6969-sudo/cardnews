@@ -6,13 +6,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 import { auth, db } from "./firebase-init.js";
+import { MEMBERS } from "./family.js";
 
-export const MEMBERS = [
-  { id: "dad", name: "아빠", email: "dad@ourfamily.local", color: "#ff6b5e" },
-  { id: "mom", name: "박미희", email: "mom@ourfamily.local", color: "#5ec8ff" },
-  { id: "son1", name: "송영재", email: "son1@ourfamily.local", color: "#6bd68a" },
-  { id: "son2", name: "송윤재", email: "son2@ourfamily.local", color: "#c792ea" },
-];
+export { MEMBERS };
 
 const PIN_SALT = ":bara-aje-2026";
 const PIN_LENGTH = 4;

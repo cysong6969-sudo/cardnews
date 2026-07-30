@@ -3,10 +3,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 import { db } from "./firebase-init.js";
 import { cloudinaryConfig } from "./firebase-config.js";
+import { subscribeMembers, colorForMemberId } from "./family.js";
 
 let currentUser = null;
 let unsubscribe = null;
 let photosCache = [];
+let membersCache = {};
 
 function escapeHtml(str) {
   const div = document.createElement("div");
@@ -41,7 +43,9 @@ async function uploadToCloudinary(file, onProgress) {
 function renderGrid(grid) {
   grid.innerHTML = photosCache.map((snap) => {
     const p = snap.data();
-    return `<div class="thumb" data-id="${snap.id}"><img src="${p.url}" loading="lazy" alt=""></div>`;
+    const uploader = membersCache[p.uploadedByUid];
+    const borderColor = uploader ? colorForMemberId(uploader.memberId) : "transparent";
+    return `<div class="thumb" data-id="${snap.id}" style="border-color:${borderColor}"><img src="${p.url}" loading="lazy" alt=""></div>`;
   }).join("");
 }
 
@@ -82,6 +86,11 @@ export function initPhotos({ form, fileInput, captionInput, dateInput, statusEl,
   if (unsubscribe) unsubscribe();
   unsubscribe = onSnapshot(q, (snap) => {
     photosCache = snap.docs;
+    renderGrid(grid);
+  });
+
+  subscribeMembers((map) => {
+    membersCache = map;
     renderGrid(grid);
   });
 

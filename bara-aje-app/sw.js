@@ -1,4 +1,4 @@
-const CACHE_NAME = "bara-aje-shell-v14";
+const CACHE_NAME = "bara-aje-shell-v16";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const SHELL_FILES = [
   "./js/firebase-config.js",
   "./js/firebase-init.js",
   "./js/auth.js",
+  "./js/family.js",
   "./js/chat.js",
   "./js/photos.js",
   "./js/calendar.js",

@@ -23,25 +23,27 @@
 <div id="pin-overlay" class="pin-overlay hidden"></div>
 
 <div id="app-screen" class="hidden">
-  <header class="app-header">
-    <div>
-      <div class="title">바라아제</div>
-      <div class="who" id="who-label"></div>
-    </div>
-    <button id="switch-profile-btn" class="switch-profile-btn">다른 프로필로 전환</button>
-  </header>
+  <div class="app-topbar">
+    <header class="app-header">
+      <div>
+        <div class="title">바라아제</div>
+        <div class="who" id="who-label"></div>
+      </div>
+      <button id="switch-profile-btn" class="switch-profile-btn">다른 프로필로 전환</button>
+    </header>
 
-  <nav class="tabs">
-    <button data-tab="chat" class="active">메신저</button>
-    <button data-tab="photos">추억사진</button>
-    <button data-tab="calendar">캘린더</button>
-  </nav>
+    <nav class="tabs">
+      <button data-tab="chat" class="active">메신저</button>
+      <button data-tab="photos">추억사진</button>
+      <button data-tab="calendar">캘린더</button>
+    </nav>
+  </div>
 
   <main>
     <section id="view-chat" class="view">
       <div id="chat-messages"></div>
       <form id="chat-form" class="chat-input-row">
-        <input id="chat-input" type="text" placeholder="메시지를 입력하세요" autocomplete="off">
+        <textarea id="chat-input" rows="1" placeholder="메시지를 입력하세요" autocomplete="off"></textarea>
         <button type="submit">전송</button>
       </form>
     </section>

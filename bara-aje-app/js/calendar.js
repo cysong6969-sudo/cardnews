@@ -118,13 +118,25 @@ function openEventModal(prefillDate, existing) {
         <h3>${existing ? "일정 보기 / 수정" : "일정 추가"}</h3>
         <input id="evt-title" type="text" placeholder="제목" value="${e ? escapeHtml(e.title) : ""}">
         <input id="evt-date" type="date" value="${e ? e.date : (prefillDate || toDateStr(new Date()))}">
-        <input id="evt-time" type="time" value="${e && e.startTime ? e.startTime : ""}">
+        <div class="time-select-row">
+          <select id="evt-hour">
+            <option value="">시간 미정</option>
+            ${Array.from({ length: 24 }, (_, h) => pad(h)).map((h) =>
+              `<option value="${h}" ${e && e.startTime && e.startTime.split(":")[0] === h ? "selected" : ""}>${h}시</option>`
+            ).join("")}
+          </select>
+          <select id="evt-minute">
+            ${["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) =>
+              `<option value="${m}" ${e && e.startTime && e.startTime.split(":")[1] === m ? "selected" : ""}>${m}분</option>`
+            ).join("")}
+          </select>
+        </div>
         <textarea id="evt-memo" rows="7" placeholder="메모, 에세이, 시 등 자유롭게 적어주세요 (선택)">${e ? escapeHtml(e.memo || "") : ""}</textarea>
         <div style="display:flex; gap:8px;">
           ${EVENT_COLORS.map((c) => `<span class="dot color-dot" style="background:${c}; width:22px; height:22px; cursor:pointer; ${c === selectedColor ? "box-shadow:0 0 0 2px var(--text);" : ""}" data-color="${c}"></span>`).join("")}
         </div>
         <div class="modal-actions">
-          ${existing ? `<button id="evt-delete" style="color:var(--accent);">삭제</button>` : `<button id="evt-cancel">취소</button>`}
+          ${existing ? `<button id="evt-close">닫기</button><button id="evt-delete" style="color:var(--accent);">삭제</button>` : `<button id="evt-cancel">취소</button>`}
           <button id="evt-save" class="primary">저장</button>
         </div>
       </div>
@@ -143,6 +155,8 @@ function openEventModal(prefillDate, existing) {
   });
   const cancelBtn = root.querySelector("#evt-cancel");
   if (cancelBtn) cancelBtn.addEventListener("click", () => { root.innerHTML = ""; });
+  const closeBtn = root.querySelector("#evt-close");
+  if (closeBtn) closeBtn.addEventListener("click", () => { root.innerHTML = ""; });
 
   const deleteBtn = root.querySelector("#evt-delete");
   if (deleteBtn) {
@@ -157,10 +171,12 @@ function openEventModal(prefillDate, existing) {
     const title = root.querySelector("#evt-title").value.trim();
     const date = root.querySelector("#evt-date").value;
     if (!title || !date || !currentUser) return;
+    const hour = root.querySelector("#evt-hour").value;
+    const minute = root.querySelector("#evt-minute").value;
     const payload = {
       title,
       date,
-      startTime: root.querySelector("#evt-time").value || null,
+      startTime: hour ? `${hour}:${minute}` : null,
       memo: root.querySelector("#evt-memo").value.trim(),
       color: selectedColor,
     };
@@ -179,24 +195,37 @@ function openEventModal(prefillDate, existing) {
   });
 }
 
+function goToMonth(delta) {
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1);
+  subscribeMonth();
+}
+
 export function initCalendar({ grid, list, label, prevBtn, nextBtn, addBtn }) {
   refs = { grid, list, label };
   subscribeMonth();
 
-  prevBtn.addEventListener("click", () => {
-    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
-    subscribeMonth();
-  });
-  nextBtn.addEventListener("click", () => {
-    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
-    subscribeMonth();
-  });
+  prevBtn.addEventListener("click", () => goToMonth(-1));
+  nextBtn.addEventListener("click", () => goToMonth(1));
   addBtn.addEventListener("click", () => openEventModal());
 
   grid.addEventListener("click", (e) => {
     const cell = e.target.closest(".cal-cell:not(.empty)");
     if (cell) openEventModal(cell.dataset.date);
   });
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  grid.addEventListener("touchstart", (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  grid.addEventListener("touchend", (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      goToMonth(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
 
   list.addEventListener("click", async (e) => {
     const delBtn = e.target.closest(".del");

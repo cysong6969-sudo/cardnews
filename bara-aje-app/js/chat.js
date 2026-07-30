@@ -2,6 +2,7 @@ import {
   collection, addDoc, doc, setDoc, updateDoc, deleteField, query, orderBy, limit, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 import { db } from "./firebase-init.js";
+import { subscribeMembers, colorForMemberId } from "./family.js";
 
 let currentUser = null;
 let unsubscribe = null;
@@ -66,8 +67,12 @@ function renderReadBadge(m, mine) {
   if (!mine) return "";
   const unread = unreadUidsFor(m);
   if (!unread || unread.length === 0) return "";
-  const names = unread.map((uid) => membersCache[uid] || "").filter(Boolean).join(", ");
+  const names = unread.map((uid) => (membersCache[uid] ? membersCache[uid].name : "")).filter(Boolean).join(", ");
   return `<span class="read-badge" title="안읽음: ${escapeHtml(names)}">${unread.length}</span>`;
+}
+
+function scrollToBottom(container) {
+  container.scrollTop = container.scrollHeight;
 }
 
 function renderMessages(container, docs, shouldScroll) {
@@ -80,9 +85,13 @@ function renderMessages(container, docs, shouldScroll) {
     const mine = currentUser && m.senderUid === currentUser.uid;
     const text = m.text || "";
     const long = isLongText(text);
+    const senderInfo = !mine && membersCache[m.senderUid];
+    const bubbleStyle = senderInfo
+      ? `style="background:${colorForMemberId(senderInfo.memberId)}26; border-color:${colorForMemberId(senderInfo.memberId)}66;"`
+      : "";
     return `
-      <div class="msg ${mine ? "me" : ""} ${long ? "truncated" : ""}" data-id="${snap.id}">
-        ${mine ? "" : `<div class="sender">${escapeHtml(m.senderName || "")}</div>`}
+      <div class="msg ${mine ? "me" : ""} ${long ? "truncated" : ""}" data-id="${snap.id}" ${bubbleStyle}>
+        ${mine ? "" : `<div class="sender" style="color:${senderInfo ? colorForMemberId(senderInfo.memberId) : "var(--sub)"}">${escapeHtml(m.senderName || "")}</div>`}
         <div class="text">${escapeHtml(text)}</div>
         ${long ? `<div class="more-link">더보기</div>` : ""}
         <div class="msg-actions">
@@ -99,7 +108,7 @@ function renderMessages(container, docs, shouldScroll) {
       </div>
     `;
   }).join("");
-  if (shouldScroll && !openPickerId) container.scrollTop = container.scrollHeight;
+  if (shouldScroll && !openPickerId) scrollToBottom(container);
 }
 
 async function toggleReaction(messageId, emoji) {
@@ -162,9 +171,8 @@ export function initChat({ container, form, input }) {
     if (isChatVisible(container)) markChatRead();
   });
 
-  onSnapshot(collection(db, "members"), (snap) => {
-    membersCache = {};
-    snap.docs.forEach((d) => { membersCache[d.id] = d.data().name; });
+  subscribeMembers((map) => {
+    membersCache = map;
     renderMessages(container, lastDocs, false);
   });
 
@@ -204,11 +212,17 @@ export function initChat({ container, form, input }) {
     }
   });
 
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text || !currentUser) return;
     input.value = "";
+    input.style.height = "auto";
     await addDoc(collection(db, "messages"), {
       senderUid: currentUser.uid,
       senderName: currentUser.displayName,
@@ -219,7 +233,10 @@ export function initChat({ container, form, input }) {
 }
 
 export function onChatTabActivated() {
-  if (containerEl && isChatVisible(containerEl)) markChatRead();
+  if (containerEl && isChatVisible(containerEl)) {
+    markChatRead();
+    scrollToBottom(containerEl);
+  }
 }
 
 export function setChatUser(user, member) {
