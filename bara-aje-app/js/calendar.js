@@ -99,12 +99,33 @@ function renderList() {
         <div class="title">
           <div>${escapeHtml(e.title)}</div>
           <div class="meta" style="color:var(--sub); font-size:11px;">${e.date}${e.startTime ? " · " + e.startTime : ""} · ${escapeHtml(e.createdByName || "")}</div>
-          ${memoPreview ? `<div class="meta" style="color:var(--sub); font-size:11px; margin-top:2px;">${escapeHtml(memoPreview)}${e.memo.trim().length > 40 ? "…" : ""}</div>` : ""}
+          ${memoPreview ? `<div class="meta memo-preview" data-id="${snap.id}" style="color:var(--sub); font-size:11px; margin-top:2px;">${escapeHtml(memoPreview)}${e.memo.trim().length > 40 ? "…" : ""}</div>` : ""}
         </div>
         <button class="del" data-id="${snap.id}">✕</button>
       </div>
     `;
   }).join("");
+}
+
+function openMemoReadModal(snap) {
+  const e = snap.data();
+  const root = document.getElementById("modal-root");
+  root.innerHTML = `
+    <div class="modal-overlay" id="memo-read-overlay">
+      <div class="modal-sheet">
+        <h3>${escapeHtml(e.title)}</h3>
+        <div class="msg-detail-time">${e.date}${e.startTime ? " · " + e.startTime : ""} · ${escapeHtml(e.createdByName || "")}</div>
+        <div class="msg-detail-text">${escapeHtml(e.memo || "")}</div>
+        <div class="modal-actions">
+          <button id="memo-read-close" class="primary">닫기</button>
+        </div>
+      </div>
+    </div>
+  `;
+  root.querySelector("#memo-read-overlay").addEventListener("click", (ev) => {
+    if (ev.target.id === "memo-read-overlay") root.innerHTML = "";
+  });
+  root.querySelector("#memo-read-close").addEventListener("click", () => { root.innerHTML = ""; });
 }
 
 function openEventModal(prefillDate, existing) {
@@ -232,6 +253,12 @@ export function initCalendar({ grid, list, label, prevBtn, nextBtn, addBtn }) {
     if (delBtn) {
       if (!confirm("이 일정을 삭제할까요?")) return;
       await deleteDoc(doc(db, "events", delBtn.dataset.id));
+      return;
+    }
+    const memoPreview = e.target.closest(".memo-preview");
+    if (memoPreview) {
+      const snap = eventsCache.find((s) => s.id === memoPreview.dataset.id);
+      if (snap) openMemoReadModal(snap);
       return;
     }
     const item = e.target.closest(".cal-event-item");

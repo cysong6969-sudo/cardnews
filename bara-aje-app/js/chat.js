@@ -88,10 +88,40 @@ function scrollToBottom(container) {
   container.scrollTop = container.scrollHeight;
 }
 
+// Mobile browsers (esp. iOS Safari) only allow audio to actually produce sound
+// if the AudioContext was created/resumed inside a direct user-gesture handler.
+// A message arriving via Firestore is a *remote* event, not a gesture, so we
+// create ONE context up front and "unlock" it on the very first tap anywhere
+// in the app (profile picker, PIN pad, etc.) — then reuse that same unlocked
+// context for every later chime, even ones triggered by background events.
+let sharedAudioCtx = null;
+
+function getAudioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+  if (sharedAudioCtx.state === "suspended") sharedAudioCtx.resume().catch(() => {});
+  return sharedAudioCtx;
+}
+
+function unlockAudioOnce() {
+  getAudioContext();
+  if ("speechSynthesis" in window) {
+    try {
+      const primer = new SpeechSynthesisUtterance(" ");
+      primer.volume = 0;
+      window.speechSynthesis.speak(primer);
+    } catch (err) { /* ignore */ }
+  }
+}
+["pointerdown", "click", "touchstart"].forEach((evt) => {
+  document.addEventListener(evt, unlockAudioOnce, { once: true, passive: true });
+});
+
 function playChime() {
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new Ctx();
+    const ctx = getAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
     [660, 880].forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -111,20 +141,18 @@ function playChime() {
 }
 
 function playNotification() {
+  playChime();
   try {
     if ("speechSynthesis" in window) {
-      playChime();
       const utter = new SpeechSynthesisUtterance("아제");
       utter.lang = "ko-KR";
       utter.rate = 1.1;
       utter.pitch = 1.3;
       utter.volume = 0.85;
       window.speechSynthesis.speak(utter);
-    } else {
-      playChime();
     }
   } catch (err) {
-    playChime();
+    console.warn("음성 알림 실패:", err.message);
   }
 }
 

@@ -588,6 +588,7 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1
 .cal-event-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .cal-event-item .title { flex: 1; }
 .cal-event-item .del { background: none; border: none; color: var(--sub); cursor: pointer; }
+.cal-event-item .memo-preview { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 
 .fab {
   position: fixed;
